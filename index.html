@@ -384,9 +384,8 @@ table.att tr:hover td{background:#FAFAF8}
         <button class="btn admin-trainer-only" onclick="addAttendeeRow()">+ Attendee</button>
         <button class="btn coordinator-hide" onclick="saveDraft()">Save Draft</button>
         <button class="btn primary coordinator-hide" onclick="finalizeSheet()">Finalize</button>
-        <button class="btn" onclick="exportCSV()">Export CSV</button>
+        <button class="btn coordinator-hide" onclick="exportCSV()">Export CSV</button>
         <button class="btn" onclick="exportPDF()">Export PDF</button>
-        <button class="btn coordinator-only" onclick="emailSheet()" style="display:none">&#9993; Email to me</button>
       </div>
       <div class="sheet-card">
         <div class="sheet-card-head">
@@ -438,7 +437,7 @@ table.att tr:hover td{background:#FAFAF8}
         </div>
       </div>
 
-      <div class="payroll-panel">
+      <div class="payroll-panel coordinator-hide">
         <div class="payroll-head">
           <div class="payroll-head-title">Payroll summary</div>
           <button class="btn sm" onclick="exportPayrollCSV()">Export payroll CSV</button>
@@ -1143,7 +1142,7 @@ function renderAttendees(){
       sigCell+=`<div>
         <div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px">Day ${si+1} · ${fmtDate(s.session_date)}</div>
         <canvas class="sig-canvas" id="sig-${sigKey}" width="320" height="100" data-attidx="${i}" data-sessid="${s.id}"></canvas>
-        <span class="clear-sig" onclick="clearSig('${sigKey}','${a.id}','${s.id}')">clear</span>
+        <span class="clear-sig" onclick="clearSig('${sigKey}','${a.id}','${s.id}')" style="${currentRole==='coordinator'?'display:none':''}">clear</span>
       </div>`;
     });
     sigCell+=`</div></td>`;
@@ -1181,6 +1180,11 @@ function initSig(sigKey, attIdx, sessId, att){
   const ctx=canvas.getContext('2d');
   const sigVal=(att.signatures||{})[sessId]||'';
   if(sigVal){const img=new Image();img.onload=()=>ctx.drawImage(img,0,0);img.src=sigVal;}
+  // Coordinators can only view — no drawing
+  if(currentRole==='coordinator'){
+    canvas.style.cursor='default';
+    return;
+  }
   let drawing=false,lx=0,ly=0;
   const pos=(e,c)=>{const r=c.getBoundingClientRect();const src=e.touches?e.touches[0]:e;return{x:(src.clientX-r.left)*(c.width/r.width),y:(src.clientY-r.top)*(c.height/r.height)};};
   canvas.onmousedown=canvas.ontouchstart=(e)=>{e.preventDefault();drawing=true;const p=pos(e,canvas);lx=p.x;ly=p.y;};
