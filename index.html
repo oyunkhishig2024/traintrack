@@ -444,7 +444,10 @@ table.att tr:hover td{background:var(--surface2)}
       <div class="sheet-card" id="signed-sheets-panel" style="margin-bottom:14px">
         <div class="sheet-card-head" style="display:flex;align-items:center;justify-content:space-between">
           <div style="font-size:13px;font-weight:600">📋 Signed Attendance Sheets</div>
-          <input type="file" id="signed-sheet-upload" accept=".pdf,image/*" style="display:none" onchange="uploadSignedSheet(event)">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn sm" onclick="loadSignedSheets()">↻ Refresh</button>
+            <input type="file" id="signed-sheet-upload" accept=".pdf,image/*" style="display:none" onchange="uploadSignedSheet(event)">
+          </div>
         </div>
         <div class="sheet-card-body"><div id="signed-sheets-list"><p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p></div></div>
       </div>
@@ -2012,7 +2015,7 @@ window._downloadSheet = function(sessIdx) {
       <h1>POWER FREQUENCY</h1>
       <p>Technical &amp; High Risk Training Center</p>
     </div>
-    <div class="day-badge">Day ${dayNum} of ${ss.length}</div>
+    <div class="day-badge" style="display:none">Day ${dayNum} of ${ss.length}</div>
   </div>
   <div class="info-box">
     <div class="info-grid">
@@ -2034,7 +2037,6 @@ window._downloadSheet = function(sessIdx) {
       </div>
     </div>
   </div>
-  <div class="notice">Your signature is an acknowledgement of attendance and responsibility for the class content.</div>
   <table>
     <colgroup>
       <col style="width:28px">
@@ -2057,15 +2059,26 @@ window._downloadSheet = function(sessIdx) {
 </body>
 </html>`;
 
-  // Convert HTML to downloadable PDF via data URL
-  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${c.name}_Day${dayNum}_${fmtDate(sess.session_date)}.html`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
-  showToast(`Day ${dayNum} sheet downloaded — open file and Print → Save as PDF`);
+  // Remove notice and day badge, auto-print as PDF
+  const htmlFinal = html
+    .replace(/<div class="notice">.*?<\/div>/, '')
+    .replace(/<div class="day-badge">.*?<\/div>/, '')
+    .replace(
+      '</style>',
+      `  @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @page { size: A4 portrait; margin: 8mm; }
+      }
+      </style>
+      <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script>`
+    );
+
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(htmlFinal);
+    w.document.close();
+  }
+  showToast(`Opening Day ${dayNum} sheet — save as PDF`);
 }
 
 // ══ SIGNED SHEETS UPLOAD ══
@@ -2104,23 +2117,26 @@ async function uploadSignedSheet(e) {
 
 async function loadSignedSheets() {
   const el = document.getElementById('signed-sheets-list');
-  if (!currentCourseId || !el) return;
-
-  // Get sessions - fetch from DB if not cached
-  let ss = getSessions(currentCourseId);
-  if (!ss.length) {
-    const { data: dbSess } = await db.from('sessions').select('*')
-      .eq('course_id', currentCourseId).order('session_date');
-    ss = dbSess || [];
-    if (ss.length) {
-      sessions[currentCourseId] = ss;
-    }
-  }
-
-  if (!ss.length) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Add sessions first, then upload signed sheets per day.</p>';
+  if (!el) return;
+  if (!currentCourseId) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>';
     return;
   }
+
+  el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
+
+  // Always fetch sessions directly from DB
+  const { data: dbSess } = await db.from('sessions').select('*')
+    .eq('course_id', currentCourseId).order('session_date');
+  const ss = dbSess || [];
+
+  if (!ss.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Add sessions first to enable signed sheet uploads.</p>';
+    return;
+  }
+
+  // Update cache
+  sessions[currentCourseId] = ss.map(normalizeSession);
   const { data } = await db.from('signed_sheets').select('*')
     .eq('course_id', currentCourseId).order('day_number');
   const uploaded = {};
