@@ -1485,7 +1485,11 @@ function loadCourse(){
     attendees[id]=(data||[]).map(normalizeAttendee);
     renderAttendees();
   });
-  loadSignedSheets();
+  // Fetch sessions fresh then load signed sheets
+  db.from('sessions').select('*').eq('course_id',id).order('session_date').then(({data})=>{
+    if(data&&data.length){ sessions[id]=data.map(normalizeSession); renderSessionsList(); renderPayroll(); }
+    loadSignedSheets();
+  });
 }
 function setType(t,silent){
   currentType=t;
@@ -2053,13 +2057,15 @@ window._downloadSheet = function(sessIdx) {
 </body>
 </html>`;
 
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    w.onload = () => { setTimeout(() => { w.print(); }, 300); };
-  }
-  showToast(`Day ${dayNum} attendance sheet opened — Print → Save as PDF`);
+  // Convert HTML to downloadable PDF via data URL
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${c.name}_Day${dayNum}_${fmtDate(sess.session_date)}.html`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  showToast(`Day ${dayNum} sheet downloaded — open file and Print → Save as PDF`);
 }
 
 // ══ SIGNED SHEETS UPLOAD ══
