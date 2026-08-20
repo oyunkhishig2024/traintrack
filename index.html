@@ -3786,7 +3786,10 @@ function saveCompanyList(list){localStorage.setItem('pf_companies',JSON.stringif
 function renderCompanyManager(){
   const el=document.getElementById('company-list-admin');if(!el)return;
   const list=getCompanyList();
-  el.innerHTML=list.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="flex:1;font-size:13px;font-weight:500">${c}</span>${DEFAULT_COMPANIES.includes(c)?'':\`<button class="btn sm danger" onclick="removeCompany(\${i})">✕</button>\`}</div>`).join('');
+  el.innerHTML=list.map((c,i)=>{
+    const removeBtn = DEFAULT_COMPANIES.includes(c) ? '' : `<button class="btn sm danger" onclick="removeCompany(${i})">✕</button>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="flex:1;font-size:13px;font-weight:500">${c}</span>${removeBtn}</div>`;
+  }).join('');
 }
 window.addCompany=function(){const inp=document.getElementById('new-company-name');const name=inp?.value.trim();if(!name){showToast('Enter company name');return;}const list=getCompanyList();if(list.includes(name)){showToast('Already in list');return;}list.push(name);saveCompanyList(list);inp.value='';renderCompanyManager();showToast(name+' added!');};
 window.removeCompany=function(i){const list=getCompanyList();if(DEFAULT_COMPANIES.includes(list[i])){showToast('Cannot remove default companies');return;}list.splice(i,1);saveCompanyList(list);renderCompanyManager();showToast('Removed');};
