@@ -410,7 +410,7 @@ table.att tr:hover td{background:var(--surface2)}
       <div class="action-bar" style="justify-content:flex-end">
         <button class="btn admin-trainer-only" onclick="finalizeSheet()">Хичээлээ хаах</button>
         <button class="btn admin-trainer-only" onclick="exportCSV()">Export CSV</button>
-        <button class="btn primary admin-trainer-only" onclick="downloadAttendanceSheet()">⬇ Ирцийн хуудас хэвлэх</button>
+        <button class="btn primary admin-trainer-only" onclick="downloadAttendanceSheet()">⬇ Ирцийн хуудас татах</button>
       </div>
       <div class="sheet-card">
         <div class="sheet-card-head">
@@ -440,7 +440,16 @@ table.att tr:hover td{background:var(--surface2)}
         </div>
       </div>
 
-      <!-- ATTENDEES (moved to top - change 3) -->
+      <!-- SIGNED SHEETS — before attendees -->
+      <div class="sheet-card" id="signed-sheets-panel" style="margin-bottom:14px">
+        <div class="sheet-card-head" style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:13px;font-weight:600">📋 Signed Attendance Sheets</div>
+          <input type="file" id="signed-sheet-upload" accept=".pdf,image/*" style="display:none" onchange="uploadSignedSheet(event)">
+        </div>
+        <div class="sheet-card-body"><div id="signed-sheets-list"><p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p></div></div>
+      </div>
+
+      <!-- ATTENDEES -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Attendees</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -466,15 +475,6 @@ table.att tr:hover td{background:var(--surface2)}
         <button class="add-row-btn admin-trainer-only" onclick="addAttendeeRow()" id="add-row-btn">
           <span style="font-size:16px;line-height:1">+</span> Add attendee row
         </button>
-      </div>
-
-      <!-- SIGNED SHEETS -->
-      <div class="sheet-card" id="signed-sheets-panel" style="margin-top:14px">
-        <div class="sheet-card-head" style="display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:13px;font-weight:600">📋 Signed Attendance Sheets</div>
-          <input type="file" id="signed-sheet-upload" accept=".pdf,image/*" style="display:none" onchange="uploadSignedSheet(event)">
-        </div>
-        <div class="sheet-card-body"><div id="signed-sheets-list"><p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p></div></div>
       </div>
 
       <!-- SESSIONS (collapsible) -->
@@ -1966,7 +1966,7 @@ window._downloadSheet = function(sessIdx) {
       <td style="font-family:monospace;font-size:11px">${a.worker_id||'—'}</td>
       <td style="font-weight:600">${(a.first_name||'')} ${(a.last_name||'')}</td>
       <td>${a.company||'—'}</td>
-      <td><div style="border:1px solid #bbb;height:38px;margin:2px 4px 2px 0;border-radius:3px;background:#fafafa"></div></td>
+      <td><div style="border:1px solid #bbb;height:52px;width:120px;margin:3px 0;border-radius:3px;background:#fafafa"></div></td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -2036,8 +2036,8 @@ window._downloadSheet = function(sessIdx) {
       <col style="width:28px">
       <col style="width:85px">
       <col style="width:200px">
-      <col style="width:85px">
-      <col>
+      <col style="width:100px">
+      <col style="width:130px">
     </colgroup>
     <thead>
       <tr>
@@ -2099,7 +2099,18 @@ async function uploadSignedSheet(e) {
 async function loadSignedSheets() {
   const el = document.getElementById('signed-sheets-list');
   if (!currentCourseId || !el) return;
-  const ss = getSessions(currentCourseId);
+
+  // Get sessions - fetch from DB if not cached
+  let ss = getSessions(currentCourseId);
+  if (!ss.length) {
+    const { data: dbSess } = await db.from('sessions').select('*')
+      .eq('course_id', currentCourseId).order('session_date');
+    ss = dbSess || [];
+    if (ss.length) {
+      sessions[currentCourseId] = ss;
+    }
+  }
+
   if (!ss.length) {
     el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Add sessions first, then upload signed sheets per day.</p>';
     return;
