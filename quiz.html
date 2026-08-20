@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Power Frequency — Quiz</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23CC1B1B'/><text x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='bold' fill='white' text-anchor='middle'>P</text></svg>">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Poppins',sans-serif;background:#FDF2E9;min-height:100vh;color:#1a1a1a}
+.wrap{max-width:480px;margin:0 auto;padding:24px}
+.card{background:#fff;border:2.5px solid #1a1a1a;padding:20px;margin-bottom:16px}
+.card-yellow{background:#FFE66D;border:2.5px solid #1a1a1a;padding:20px;margin-bottom:16px}
+.brand{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.title{font-size:22px;font-weight:800;letter-spacing:-0.8px}
+.subtitle{font-size:13px;font-weight:500;color:#6B6560;margin-top:4px}
+.rule{font-size:13px;color:#6B6560;margin-bottom:4px}
+.label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px}
+input[type=tel]{width:100%;padding:12px 14px;border:2.5px solid #1a1a1a;font-size:16px;font-family:'Poppins',sans-serif;font-weight:600;margin-bottom:12px;background:#fff}
+.btn{width:100%;padding:14px;background:#1a1a1a;color:#fff;border:2.5px solid #1a1a1a;font-size:15px;font-weight:800;font-family:'Poppins',sans-serif;cursor:pointer}
+.btn:active{opacity:0.8}
+.btn-retry{display:none;width:100%;padding:14px;background:#1a1a1a;color:#fff;border:2.5px solid #1a1a1a;font-size:14px;font-weight:800;font-family:'Poppins',sans-serif;cursor:pointer;margin-bottom:8px}
+.err{color:#FF686B;font-size:12px;font-weight:700;margin-bottom:10px;display:none}
+.progress{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;background:#FFE66D;border:2.5px solid #1a1a1a;margin-bottom:16px}
+.opt{display:block;width:100%;text-align:left;padding:13px 16px;border:2.5px solid #1a1a1a;background:#fff;font-size:14px;font-family:'Poppins',sans-serif;font-weight:600;cursor:pointer;margin-bottom:8px}
+.opt.selected{background:#FFE66D}
+.opt:active{opacity:0.8}
+.next-btn{display:none;width:100%;padding:14px;background:#1a1a1a;color:#fff;border:2.5px solid #1a1a1a;font-size:14px;font-weight:800;font-family:'Poppins',sans-serif;cursor:pointer}
+.result-card{border:2.5px solid #1a1a1a;padding:28px 20px;text-align:center}
+.score{font-size:48px;font-weight:800;margin-bottom:8px}
+.result-label{font-size:22px;font-weight:800;margin-bottom:8px}
+.result-msg{font-size:14px;font-weight:500;color:#6B6560;margin-bottom:20px}
+#screen-loading,#screen-intro,#screen-questions,#screen-result{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Loading -->
+  <div id="screen-loading">
+    <div class="card-yellow">
+      <div class="brand">Power Frequency — Attendance</div>
+      <div class="title">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Intro -->
+  <div id="screen-intro">
+    <div class="card-yellow">
+      <div class="brand">Power Frequency — Attendance</div>
+      <div class="title" id="q-title">Quiz</div>
+      <div class="subtitle" id="q-course"></div>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">Rules:</div>
+      <div class="rule">• Multiple choice questions</div>
+      <div class="rule" id="q-pass-info">• 80% or above to pass</div>
+      <div class="rule" style="margin-bottom:16px">• 2 attempts allowed</div>
+      <div class="label">Enter your phone number</div>
+      <input type="tel" id="q-phone" placeholder="99001234" maxlength="8">
+      <div class="err" id="q-err"></div>
+      <button class="btn" onclick="startQuiz()">Start →</button>
+    </div>
+  </div>
+
+  <!-- Questions -->
+  <div id="screen-questions">
+    <div class="progress">
+      <span style="font-weight:800;font-size:13px" id="q-progress">1/10</span>
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase" id="q-attempt">1nd attempt</span>
+    </div>
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:20px;line-height:1.4" id="q-text"></div>
+      <div id="q-options"></div>
+    </div>
+    <button class="next-btn" id="q-next" onclick="nextQuestion()">Next →</button>
+  </div>
+
+  <!-- Result -->
+  <div id="screen-result">
+    <div class="result-card" id="q-result-card">
+      <div class="score" id="q-score"></div>
+      <div class="result-label" id="q-result-label"></div>
+      <div class="result-msg" id="q-result-msg"></div>
+      <button class="btn-retry" id="q-retry" onclick="retryQuiz()">Retry →</button>
+      <div style="font-size:12px;color:#9E9890;font-weight:600;margin-top:8px">Power Frequency — Attendance</div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const db = createClient(
+  'https://ymyykmowandqmnvbompg.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlteXlrbW93YW5kcW1udmJvbXBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDcyMTcsImV4cCI6MjEwMDE4MzIxN30.dSSWpY1tNiCirA-kdE-cFLSRDFQOqMBr9425lUeMas4'
+);
+
+let quizData = null, courseId = null, attId = null, phone = '';
+let answers = [], current = 0, attemptNum = 1, selected = null;
+
+function show(id) {
+  ['screen-loading','screen-intro','screen-questions','screen-result'].forEach(s=>document.getElementById(s).style.display='none');
+  document.getElementById(id).style.display='block';
+}
+
+async function init() {
+  const quizId = new URLSearchParams(window.location.search).get('quiz');
+  if (!quizId) { document.body.innerHTML='<div style="padding:40px;text-align:center;font-weight:700">No quiz ID in URL</div>'; return; }
+  show('screen-loading');
+  const { data: quiz } = await db.from('quizzes').select('*').eq('id', quizId).single();
+  const { data: qs } = await db.from('quiz_questions').select('*').eq('quiz_id', quizId).order('order_num');
+  if (!quiz) { document.body.innerHTML='<div style="padding:40px;text-align:center;font-weight:700;color:red">Quiz not found</div>'; return; }
+  quizData = { quiz, questions: qs||[] };
+  // Get course via assignments
+  const { data: asgn } = await db.from('quiz_assignments').select('course_id').eq('quiz_id', quizId).single();
+  courseId = asgn?.course_id || quiz.course_id;
+  if (courseId) {
+    const { data: course } = await db.from('courses').select('name').eq('id', courseId).single();
+    if (course) document.getElementById('q-course').textContent = course.name;
+  }
+  document.getElementById('q-title').textContent = quiz.title;
+  document.getElementById('q-pass-info').textContent = `• ${quiz.pass_score}% or above to pass`;
+  show('screen-intro');
+}
+
+window.startQuiz = async function() {
+  phone = document.getElementById('q-phone').value.trim().replace(/[^0-9]/g,'');
+  const err = document.getElementById('q-err');
+  if (!phone) { err.textContent='Enter your phone number'; err.style.display=''; return; }
+  if (phone.length !== 8) { err.textContent='Phone must be 8 digits'; err.style.display=''; return; }
+  const { data: att } = await db.from('attendees').select('*').eq('course_id', courseId).eq('phone', phone).single();
+  if (!att) { err.textContent='Таны утасны дугаар олдсонгүй. Багш дээрээ хандана уу.'; err.style.display=''; return; }
+  err.style.display='none';
+  attId = att.id;
+  // Check previous attempts
+  const { data: prev } = await db.from('quiz_attempts').select('*').eq('quiz_id', quizData.quiz.id).eq('worker_id', phone).order('attempt_number');
+  if (prev && prev.length >= 2) {
+    const passed = prev.some(a=>a.passed);
+    showResult(passed ? quizData.quiz.pass_score : Math.max(...prev.map(a=>a.score)), passed, true);
+    return;
+  }
+  attemptNum = prev ? prev.length + 1 : 1;
+  answers = new Array(quizData.questions.length).fill(null);
+  current = 0; selected = null;
+  document.getElementById('q-attempt').textContent = `${attemptNum}nd attempt`;
+  renderQuestion();
+  show('screen-questions');
+};
+
+function renderQuestion() {
+  const q = quizData.questions[current];
+  document.getElementById('q-progress').textContent = `${current+1}/${quizData.questions.length}`;
+  document.getElementById('q-text').textContent = q.question;
+  selected = null;
+  document.getElementById('q-next').style.display='none';
+  const labels = ['A','B','C','D'];
+  document.getElementById('q-options').innerHTML = (q.options||[]).map((opt,i)=>`
+    <button class="opt" id="opt${i}" onclick="selectOpt(${i})">${labels[i]}. ${opt}</button>`).join('');
+}
+
+window.selectOpt = function(i) {
+  selected = i; answers[current] = i;
+  document.querySelectorAll('.opt').forEach((b,j)=>b.classList.toggle('selected',j===i));
+  document.getElementById('q-next').style.display='block';
+};
+
+window.nextQuestion = async function() {
+  if (selected===null) return;
+  current++;
+  if (current < quizData.questions.length) { renderQuestion(); }
+  else { await submitQuiz(); }
+};
+
+async function submitQuiz() {
+  let correct = 0;
+  quizData.questions.forEach((q,i)=>{ if(answers[i]===q.correct_index) correct++; });
+  const score = Math.round((correct/quizData.questions.length)*100);
+  const passed = score >= quizData.quiz.pass_score;
+  await db.from('quiz_attempts').insert({ quiz_id:quizData.quiz.id, worker_id:phone, attendee_id:attId, attempt_number:attemptNum, score, passed, answers });
+  if (passed || attemptNum >= 2) {
+    await db.from('attendees').update({ result: passed?'PASS':'FAIL' }).eq('id', attId);
+  }
+  showResult(score, passed, attemptNum >= 2);
+}
+
+function showResult(score, passed, noMore) {
+  show('screen-result');
+  const card = document.getElementById('q-result-card');
+  card.style.background = passed ? '#4ECDC4' : (noMore ? '#FF686B' : '#FFE66D');
+  document.getElementById('q-score').textContent = score+'%';
+  document.getElementById('q-result-label').textContent = passed ? '✓ PASS' : (noMore ? '✗ FAIL' : 'Дахин оролдоно уу');
+  document.getElementById('q-result-msg').textContent = passed
+    ? 'Congratulations! You passed.'
+    : noMore ? 'No more attempts. Please contact your trainer.'
+    : `${quizData.quiz.pass_score}% required. One more attempt remaining.`;
+  const retry = document.getElementById('q-retry');
+  retry.style.display = (!passed && !noMore) ? 'block' : 'none';
+}
+
+window.retryQuiz = function() {
+  answers = new Array(quizData.questions.length).fill(null);
+  current = 0; selected = null; attemptNum = 2;
+  document.getElementById('q-attempt').textContent = '2nd attempt';
+  renderQuestion();
+  show('screen-questions');
+};
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Power Frequency — Attendance</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23CC1B1B'/><text x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='bold' fill='white' text-anchor='middle'>P</text></svg>">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Poppins',sans-serif;background:#FDF2E9;min-height:100vh;color:#1a1a1a}
+.wrap{max-width:520px;margin:0 auto;padding:20px}
+.card{background:#fff;border:2.5px solid #1a1a1a;padding:20px;margin-bottom:14px}
+.card-yellow{background:#FFE66D;border:2.5px solid #1a1a1a;padding:20px;margin-bottom:14px}
+.card-green{background:#4ECDC4;border:2.5px solid #1a1a1a;padding:20px;margin-bottom:14px;text-align:center}
+.brand{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;opacity:0.7}
+.title{font-size:20px;font-weight:800;letter-spacing:-0.5px}
+.subtitle{font-size:12px;font-weight:500;color:#6B6560;margin-top:3px}
+.field{margin-bottom:14px}
+.label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px;color:#1a1a1a}
+.req{color:#FF686B;margin-left:2px}
+input[type=text],input[type=tel]{width:100%;padding:11px 13px;border:2px solid #1a1a1a;font-size:15px;font-family:'Poppins',sans-serif;font-weight:500;background:#fff;outline:none}
+input:focus{border-color:#45B7D1;box-shadow:0 0 0 3px rgba(69,183,209,0.15)}
+input.error{border-color:#FF686B}
+.hint{font-size:11px;color:#9E9890;margin-top:4px;font-weight:500}
+.err-msg{font-size:11px;color:#FF686B;font-weight:700;margin-top:4px;display:none}
+.sig-section{margin-bottom:14px}
+.sig-day{margin-bottom:12px;border:2px solid #1a1a1a;overflow:hidden}
+.sig-day-header{padding:10px 14px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center}
+.sig-day-header.active{background:#4ECDC4}
+.sig-day-header.locked{background:#E0E0E0;color:#9E9890}
+.sig-day-header.past{background:#F5F0E8}
+.sig-body{padding:12px 14px}
+canvas{display:block;width:100%;height:80px;background:#fff;cursor:crosshair;touch-action:none;border:1.5px solid #DDD8CF}
+canvas.locked{cursor:not-allowed;background:#F5F5F5}
+.clear-btn{font-size:11px;color:#9E9890;cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block;font-weight:600}
+.locked-msg{font-size:11px;color:#9E9890;padding:16px;text-align:center;font-weight:600}
+.btn{width:100%;padding:15px;background:#1a1a1a;color:#fff;border:2.5px solid #1a1a1a;font-size:15px;font-weight:800;font-family:'Poppins',sans-serif;cursor:pointer;letter-spacing:0.3px}
+.btn:active{opacity:0.8}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.returning-banner{background:#FFE66D;border:2.5px solid #1a1a1a;padding:14px;margin-bottom:14px;font-size:13px;font-weight:700}
+#screen-loading,#screen-form,#screen-success,#screen-error{display:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Loading -->
+  <div id="screen-loading">
+    <div class="card-yellow">
+      <div class="brand">Power Frequency</div>
+      <div class="title">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div id="screen-form">
+    <div class="card-yellow">
+      <div class="brand">Power Frequency — Attendance</div>
+      <div class="title" id="f-course-name">Сургалт</div>
+      <div class="subtitle" id="f-course-info"></div>
+    </div>
+
+    <div id="returning-banner" class="returning-banner" style="display:none">
+      ✓ Та энэ сургалтад бүртгэлтэй байна. Please sign today's pad.
+    </div>
+
+    <div class="card" id="personal-fields">
+      <div style="font-size:13px;font-weight:800;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #1a1a1a">Personal details</div>
+      
+      <div class="field">
+        <label class="label">Утасны дугаар<span class="req">*</span></label>
+        <input type="tel" id="f-phone" placeholder="99001234" maxlength="8" oninput="this.value=this.value.replace(/[^0-9]/g,'');checkReturning()">
+        <div class="hint">8-digit phone number</div>
+        <div class="err-msg" id="err-phone">Enter your phone number (8 оронтой)</div>
+      </div>
+
+      <div id="reg-field" class="field" style="display:none">
+        <label class="label">Registration number<span class="req">*</span></label>
+        <input type="text" id="f-reg" placeholder="ЧД84020507" oninput="validateReg(this)" style="text-transform:uppercase;font-family:'DM Mono',monospace;letter-spacing:1px">
+        <div class="hint">2 Cyrillic letters + 8 digits (e.g. ЧД84020507)</div>
+        <div class="err-msg" id="err-reg">Mongolian letters only</div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label class="label">First name<span class="req">*</span></label>
+          <input type="text" id="f-name" placeholder="First name">
+          <div class="err-msg" id="err-name">First nameээ оруулна уу</div>
+        </div>
+        <div class="field">
+          <label class="label">Surname<span class="req">*</span></label>
+          <input type="text" id="f-surname" placeholder="Surname">
+          <div class="err-msg" id="err-surname">Enter surname</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Company<span class="req">*</span></label>
+        <input type="text" id="f-company" placeholder="e.g. Redpath or HASU" oninput="checkDayan(this)">
+        <div id="err-dayan" style="font-size:11px;color:#DC2626;font-weight:700;margin-top:4px;display:none">Та Redpath уу эсвэл HASU юу? "Dayan" гэж ерөнхий бичиж болохгүй</div>
+        <div class="err-msg" id="err-company">Enter company name</div>
+      </div>
+
+      <div class="field">
+        <label class="label">Worker ID</label>
+        <input type="text" id="f-workerid" placeholder="If applicable">
+      </div>
+    </div>
+
+    <!-- Signature pads -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:800;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #1a1a1a">Signature</div>
+      <div id="sig-pads"></div>
+    </div>
+
+    <div id="form-err" style="color:#FF686B;font-size:13px;font-weight:700;margin-bottom:12px;display:none;padding:12px;border:2px solid #FF686B;background:#FEF0F0"></div>
+    <button class="btn" id="submit-btn" onclick="submitForm()">Register →</button>
+    <div style="font-size:11px;color:#9E9890;text-align:center;margin-top:12px;font-weight:500">Power Frequency LLC</div>
+  </div>
+
+  <!-- Success -->
+  <div id="screen-success">
+    <div class="card-green">
+      <div style="font-size:48px;margin-bottom:8px">✓</div>
+      <div style="font-size:22px;font-weight:800;margin-bottom:6px">Successfully registered!</div>
+      <div style="font-size:14px;font-weight:500;opacity:0.8" id="success-msg"></div>
+    </div>
+    <div style="text-align:center;font-size:12px;color:#9E9890;font-weight:500">Power Frequency — Attendance</div>
+  </div>
+
+  <!-- Error -->
+  <div id="screen-error">
+    <div style="background:#FF686B;border:2.5px solid #1a1a1a;padding:28px 20px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:8px">Error occurred</div>
+      <div style="font-size:14px;font-weight:500;color:#fff;opacity:0.85" id="err-detail"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const db = createClient(
+  'https://ymyykmowandqmnvbompg.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlteXlrbW93YW5kcW1udmJvbXBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDcyMTcsImV4cCI6MjEwMDE4MzIxN30.dSSWpY1tNiCirA-kdE-cFLSRDFQOqMBr9425lUeMas4'
+);
+
+let course = null, sessions = [], isNew = false;
+let existingAttendee = null;
+let sigCanvases = {}; // {session_id: canvas}
+let checkTimer = null;
+
+function show(id) {
+  ['screen-loading','screen-form','screen-success','screen-error'].forEach(s=>document.getElementById(s).style.display='none');
+  document.getElementById(id).style.display='block';
+}
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function fmtDate(d) {
+  if(!d) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [y,m,day] = d.split('-');
+  return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`;
+}
+
+async function init() {
+  const courseId = new URLSearchParams(window.location.search).get('course');
+  if (!courseId) { showError('Course ID not found'); return; }
+  show('screen-loading');
+
+  const { data: c } = await db.from('courses').select('*').eq('id', courseId).single();
+  if (!c) { showError('Course not found'); return; }
+  course = c;
+  isNew = c.type === 'new';
+
+  const { data: ss } = await db.from('sessions').select('*').eq('course_id', courseId).order('session_date');
+  sessions = ss || [];
+
+  // Set course info
+  document.getElementById('f-course-name').textContent = c.name;
+  document.getElementById('f-course-info').textContent = `${c.code} · ${c.type === 'new' ? 'New training' : 'Давтлага'}`;
+
+  // Show reg field for new courses
+  if (isNew) document.getElementById('reg-field').style.display = '';
+
+  // Build signature pads
+  buildSigPads();
+  show('screen-form');
+}
+
+function buildSigPads() {
+  const container = document.getElementById('sig-pads');
+  const todayStr = today();
+  
+  if (!sessions.length) {
+    container.innerHTML = '<div style="font-size:13px;color:#9E9890;text-align:center;padding:16px">No sessions</div>';
+    return;
+  }
+
+  container.innerHTML = sessions.map((s, i) => {
+    const isToday = s.session_date === todayStr;
+    const isPast = s.session_date < todayStr;
+    const isFuture = s.session_date > todayStr;
+    const status = isToday ? 'active' : (isPast ? 'past' : 'locked');
+    const label = isToday ? '✏ Today — please sign' : (isPast ? '✓ Past' : '🔒 Locked');
+    return `
+      <div class="sig-day">
+        <div class="sig-day-header ${status}">
+          <span style="font-weight:800">Day ${i+1} — ${fmtDate(s.session_date)}</span>
+          <span style="font-size:10px">${label}</span>
+        </div>
+        <div class="sig-body">
+          ${isToday || isPast ? `
+            <canvas id="sig-${s.id}" width="800" height="160" ${isFuture ? 'class="locked"' : ''}></canvas>
+            ${isToday ? `<span class="clear-btn" onclick="clearSig('${s.id}')">clear</span>` : ''}
+          ` : `
+            <div class="locked-msg">🔒 Энэ өдөр ${isFuture ? 'ирээгүй байна' : 'хаалттай'}</div>
+          `}
+        </div>
+      </div>`;
+  }).join('');
+
+  // Init canvases
+  sessions.forEach(s => {
+    const isToday = s.session_date === today();
+    const isPast = s.session_date < today();
+    if (isToday || isPast) initCanvas(s.id, isToday);
+  });
+}
+
+function initCanvas(sessId, active) {
+  const canvas = document.getElementById(`sig-${sessId}`);
+  if (!canvas) return;
+  sigCanvases[sessId] = canvas;
+  const ctx = canvas.getContext('2d');
+  if (!active) { canvas.classList.add('locked'); return; }
+
+  let drawing = false, lx = 0, ly = 0;
+  const pos = (e, c) => {
+    const r = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * (c.width / r.width), y: (src.clientY - r.top) * (c.height / r.height) };
+  };
+  canvas.onmousedown = canvas.ontouchstart = e => { e.preventDefault(); drawing=true; const p=pos(e,canvas); lx=p.x; ly=p.y; };
+  canvas.onmousemove = canvas.ontouchmove = e => {
+    e.preventDefault();
+    if (!drawing) return;
+    const p = pos(e, canvas);
+    ctx.beginPath(); ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    ctx.moveTo(lx, ly); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lx=p.x; ly=p.y;
+  };
+  canvas.onmouseup = canvas.ontouchend = () => { drawing=false; };
+  canvas.onmouseleave = () => { drawing=false; };
+}
+
+window.clearSig = function(sessId) {
+  const canvas = sigCanvases[sessId];
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+};
+
+function validateReg(input) {
+  const val = input.value;
+  const hasLatin = /[a-zA-Z]/.test(val);
+  const errEl = document.getElementById('err-reg');
+  if (hasLatin) {
+    input.value = val.replace(/[a-zA-Z]/g, '');
+    errEl.style.display = '';
+    setTimeout(()=>errEl.style.display='none', 3000);
+  }
+}
+window.validateReg = validateReg;
+
+// Check if returning attendee (debounced)
+window.checkReturning = function() {
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(async () => {
+    const phone = document.getElementById('f-phone').value.trim();
+    if (phone.length !== 8 || !course) return;
+    const { data: att } = await db.from('attendees').select('*').eq('course_id', course.id).eq('phone', phone).single();
+    if (att) {
+      existingAttendee = att;
+      // Pre-fill fields
+      document.getElementById('f-name').value = att.first_name || '';
+      document.getElementById('f-surname').value = att.last_name || '';
+      document.getElementById('f-company').value = att.company || '';
+      document.getElementById('f-workerid').value = att.worker_id || '';
+      if (att.registration_number) document.getElementById('f-reg').value = att.registration_number;
+      // Lock fields
+      ['f-name','f-surname','f-company','f-workerid','f-reg'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.readOnly = true; el.style.background = '#F5F0E8'; el.style.color = '#6B6560'; }
+      });
+      document.getElementById('returning-banner').style.display = '';
+      document.getElementById('personal-fields').style.opacity = '0.7';
+      // Load existing signatures
+      loadExistingSignatures(att);
+    } else {
+      existingAttendee = null;
+      ['f-name','f-surname','f-company','f-workerid','f-reg'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.readOnly = false; el.style.background = ''; el.style.color = ''; }
+      });
+      document.getElementById('returning-banner').style.display = 'none';
+      document.getElementById('personal-fields').style.opacity = '1';
+    }
+  }, 600);
+};
+
+function loadExistingSignatures(att) {
+  let sigs = {};
+  try { sigs = JSON.parse(att.signature || '{}'); } catch(e) {}
+  Object.entries(sigs).forEach(([sessId, dataUrl]) => {
+    const canvas = sigCanvases[sessId];
+    if (canvas && dataUrl) {
+      const img = new Image();
+      img.onload = () => canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = dataUrl;
+    }
+  });
+}
+
+window.submitForm = async function() {
+  const btn = document.getElementById('submit-btn');
+  const errEl = document.getElementById('form-err');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  // Validate
+  const phone = document.getElementById('f-phone').value.trim();
+  const name = document.getElementById('f-name').value.trim();
+  const surname = document.getElementById('f-surname').value.trim();
+  const company = document.getElementById('f-company').value.trim();
+  const workerid = document.getElementById('f-workerid').value.trim();
+  const reg = document.getElementById('f-reg').value.trim().toUpperCase();
+
+  const errors = [];
+  if (phone.length !== 8) errors.push('Phone must be 8 digits');
+  if (!name) errors.push('First nameээ оруулна уу');
+  if (!surname) errors.push('Enter surname');
+  if (!company) errors.push('Enter company name');
+  if (/^(dayan|dayn|даян|даяан|dcm)$/i.test(company)) errors.push('Та Redpath уу эсвэл HASU юу? "Dayan" гэж ерөнхий бичиж болохгүй');
+  if (isNew && !reg) errors.push('Registration numberаа оруулна уу');
+
+  // Check today's signature
+  const todayStr = today();
+  const todaySess = sessions.find(s => s.session_date === todayStr);
+  if (todaySess) {
+    const canvas = sigCanvases[todaySess.id];
+    if (canvas) {
+      const blank = !canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data.some(v=>v!==0);
+      if (blank) errors.push('Please sign today's pad');
+    }
+  }
+
+  if (errors.length) {
+    errEl.textContent = errors.join(' · ');
+    errEl.style.display = '';
+    btn.disabled = false;
+    btn.textContent = 'Register →';
+    return;
+  }
+
+  // Collect all signatures
+  const signatures = {};
+  Object.entries(sigCanvases).forEach(([sessId, canvas]) => {
+    const data = canvas.toDataURL();
+    const blank = !canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data.some(v=>v!==0);
+    if (!blank) signatures[sessId] = data;
+  });
+
+  try {
+    if (existingAttendee) {
+      // Update existing — just update signature
+      await db.from('attendees').update({ signature: JSON.stringify(signatures) }).eq('id', existingAttendee.id);
+    } else {
+      // Insert new attendee
+      await db.from('attendees').insert({
+        course_id: course.id,
+        worker_id: workerid || '—',
+        first_name: name,
+        last_name: surname,
+        registration_number: reg || '',
+        phone: phone,
+        company: company,
+        license_number: '',
+        signature: JSON.stringify(signatures),
+        result: 'Scheduled'
+      });
+    }
+    show('screen-success');
+    const todayCount = Object.keys(signatures).length;
+    document.getElementById('success-msg').textContent = existingAttendee
+      ? `${name} — signature saved`
+      : `${name} — registered successfully`;
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = '';
+    btn.disabled = false;
+    btn.textContent = 'Register →';
+  }
+};
+
+function showError(msg) {
+  show('screen-error');
+  document.getElementById('err-detail').textContent = msg;
+}
+
+init();
+</script>
+</body>
+</html>
