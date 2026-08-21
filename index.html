@@ -2088,26 +2088,31 @@ async function uploadSignedSheet(e) {
   if (!dayNum) { showToast('Day not specified'); e.target.value=''; return; }
   if (!currentCourseId) { showToast('No course selected'); return; }
 
-  const ss = getSessions(currentCourseId);
-  const sess = ss[dayNum-1];
+  // Always fetch session from DB
+  const { data: dbSess } = await db.from('sessions').select('*')
+    .eq('course_id', currentCourseId).order('session_date');
+  const sess = (dbSess||[])[dayNum-1];
   if (!sess) { showToast('Session not found'); return; }
 
   showToast('Uploading...');
 
-  // Convert to base64
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const fileUrl = ev.target.result;
-    const { error } = await db.from('signed_sheets').upsert({
+    // Delete existing first to avoid any conflict issues
+    await db.from('signed_sheets').delete()
+      .eq('course_id', currentCourseId)
+      .eq('day_number', dayNum);
+    // Insert fresh
+    const { error } = await db.from('signed_sheets').insert({
       course_id: currentCourseId,
       session_id: sess.id,
       day_number: dayNum,
       file_url: fileUrl,
       file_name: file.name,
-      uploaded_by: currentUser.id,
-    }, { onConflict: 'course_id,day_number' });
-
-    if (error) { showToast('Upload error: '+error.message); return; }
+      uploaded_by: currentUser?.id,
+    });
+    if (error) { showToast('Upload error: '+error.message); console.error(error); return; }
     showToast(`Day ${dayNum} signed sheet uploaded!`);
     e.target.value = '';
     loadSignedSheets();
