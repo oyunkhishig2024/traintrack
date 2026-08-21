@@ -1486,16 +1486,17 @@ function loadCourse(){
   // Clear signed sheets immediately to prevent showing previous course data
   const ssEl = document.getElementById('signed-sheets-list');
   if (ssEl) ssEl.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
-  // Always fetch fresh attendees from DB (ensures signatures visible for all roles)
+  // Always fetch fresh attendees from DB
   db.from('attendees').select('*').eq('course_id',id).then(({data})=>{
     attendees[id]=(data||[]).map(normalizeAttendee);
     renderAttendees();
   });
-  // Fetch sessions fresh then load signed sheets
+  // Fetch sessions then signed sheets — sequential, not parallel
   const capturedId = id;
   db.from('sessions').select('*').eq('course_id',capturedId).order('session_date').then(({data})=>{
+    if(currentCourseId !== capturedId) return; // stale
     if(data&&data.length){ sessions[capturedId]=data.map(normalizeSession); renderSessionsList(); renderPayroll(); }
-    if(currentCourseId === capturedId) loadSignedSheets();
+    loadSignedSheets(); // runs after sessions are loaded
   });
 }
 function setType(t,silent){
@@ -2135,29 +2136,28 @@ async function loadSignedSheets() {
     return;
   }
 
-  // Snapshot courseId NOW — prevent race conditions
   const courseId = currentCourseId;
-  el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
 
-  // Always fetch sessions directly from DB
-  const { data: dbSess } = await db.from('sessions').select('*')
-    .eq('course_id', courseId).order('session_date');
-  const ss = dbSess || [];
+  // Use cached sessions if available, else fetch from DB
+  let ss = getSessions(courseId);
+  if (!ss.length) {
+    const { data: dbSess } = await db.from('sessions').select('*')
+      .eq('course_id', courseId).order('session_date');
+    ss = (dbSess||[]);
+    if (ss.length) sessions[courseId] = ss.map(normalizeSession);
+  }
 
-  // Abort if course changed while loading
-  if (currentCourseId !== courseId) return;
+  if (currentCourseId !== courseId) return; // stale
 
   if (!ss.length) {
     el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Add sessions first to enable signed sheet uploads.</p>';
     return;
   }
 
-  sessions[courseId] = ss.map(normalizeSession);
   const { data } = await db.from('signed_sheets').select('*')
     .eq('course_id', courseId).order('day_number');
 
-  // Abort if course changed while loading
-  if (currentCourseId !== courseId) return;
+  if (currentCourseId !== courseId) return; // stale
 
   const uploaded = {};
   (data||[]).forEach(d => uploaded[d.day_number] = d);
