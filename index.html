@@ -1483,6 +1483,9 @@ function loadCourse(){
   document.getElementById('sh-trainers').textContent=getUniqueTrainers(id);
   document.getElementById('sh-status').innerHTML=`<span class="badge badge-${c.status}">${statusLabel(c.status)}</span>`;
   setType(c.type,true);renderSessionsList();renderPayroll();renderTrainerFooter();updateSelfRegButtons();
+  // Clear signed sheets immediately to prevent showing previous course data
+  const ssEl = document.getElementById('signed-sheets-list');
+  if (ssEl) ssEl.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
   // Always fetch fresh attendees from DB (ensures signatures visible for all roles)
   db.from('attendees').select('*').eq('course_id',id).then(({data})=>{
     attendees[id]=(data||[]).map(normalizeAttendee);
