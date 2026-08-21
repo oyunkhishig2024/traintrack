@@ -2089,24 +2089,27 @@ async function uploadSignedSheet(e) {
   if (!dayNum) { showToast('Day not specified'); e.target.value=''; return; }
   if (!currentCourseId) { showToast('No course selected'); return; }
 
-  // Always fetch session from DB
+  // Use courseId stored when upload was triggered (most reliable)
+  const courseId = e.target.dataset.courseId || currentCourseId;
+
+  // Fetch session from DB
   const { data: dbSess } = await db.from('sessions').select('*')
-    .eq('course_id', currentCourseId).order('session_date');
+    .eq('course_id', courseId).order('session_date');
   const sess = (dbSess||[])[dayNum-1];
-  if (!sess) { showToast('Session not found'); return; }
+  if (!sess) { showToast('Session not found for day ' + dayNum); return; }
 
   showToast('Uploading...');
 
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const fileUrl = ev.target.result;
-    // Delete existing first to avoid any conflict issues
+    // Delete existing for this specific course+day
     await db.from('signed_sheets').delete()
-      .eq('course_id', currentCourseId)
+      .eq('course_id', courseId)
       .eq('day_number', dayNum);
-    // Insert fresh
+    // Insert with captured courseId
     const { error } = await db.from('signed_sheets').insert({
-      course_id: currentCourseId,
+      course_id: courseId,
       session_id: sess.id,
       day_number: dayNum,
       file_url: fileUrl,
@@ -2114,9 +2117,9 @@ async function uploadSignedSheet(e) {
       uploaded_by: currentUser?.id,
     });
     if (error) { showToast('Upload error: '+error.message); console.error(error); return; }
-    showToast(`Day ${dayNum} signed sheet uploaded!`);
+    showToast(`Day ${dayNum} uploaded for ${courses.find(x=>x.id===courseId)?.name||'course'}!`);
     e.target.value = '';
-    loadSignedSheets();
+    if (currentCourseId === courseId) loadSignedSheets();
   };
   reader.readAsDataURL(file);
 }
@@ -2189,6 +2192,8 @@ async function loadSignedSheets() {
 function triggerDayUpload(dayNum) {
   const input = document.getElementById('signed-sheet-upload');
   input.dataset.dayNum = dayNum;
+  input.dataset.courseId = currentCourseId; // lock to current course
+  input.value = ''; // reset so same file can be re-uploaded
   input.click();
 }
 
