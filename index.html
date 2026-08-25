@@ -1486,7 +1486,8 @@ function loadCourse(){
   document.getElementById('sh-trainers').textContent=getUniqueTrainers(id);
   document.getElementById('sh-status').innerHTML=`<span class="badge badge-${c.status==='inprogress'?'inprogress':c.status==='completed'?'completed':'scheduled'}">${statusLabel(c.status)}</span>`;
   setType(c.type,true);renderSessionsList();renderPayroll();renderTrainerFooter();updateSelfRegButtons();
-  // Clear signed sheets immediately to prevent showing previous course data
+  // Clear signed sheets immediately + cancel any in-flight load
+  _sheetGen++;
   const ssEl = document.getElementById('signed-sheets-list');
   if (ssEl) ssEl.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
   // Always fetch fresh attendees from DB
@@ -2128,19 +2129,25 @@ async function uploadSignedSheet(e) {
   reader.readAsDataURL(file);
 }
 
+// ══ SIGNED SHEETS — generation counter prevents stale renders ══
+let _sheetGen = 0;
+
 async function loadSignedSheets(courseId) {
   const el = document.getElementById('signed-sheets-list');
   if (!el) return;
   courseId = courseId || currentCourseId;
   if (!courseId) { el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>'; return; }
 
+  // Bump generation — any older async call will bail out when it checks
+  const myGen = ++_sheetGen;
+
   el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
 
   const { data } = await db.from('signed_sheets').select('*')
     .eq('course_id', courseId).order('uploaded_at', {ascending: false});
 
-  // Stale check
-  if (currentCourseId !== courseId) return;
+  // Bail if a newer call has started (user switched courses)
+  if (myGen !== _sheetGen) return;
 
   const canDelete = currentRole === 'admin' || currentRole === 'trainer';
 
