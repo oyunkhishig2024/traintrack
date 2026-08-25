@@ -439,16 +439,20 @@ table.att tr:hover td{background:var(--surface2)}
         </div>
       </div>
 
-      <!-- SIGNED SHEETS — before attendees -->
+      <!-- SIGNED SHEETS — RTCopper style -->
       <div class="sheet-card" id="signed-sheets-panel" style="margin-bottom:14px">
-        <div class="sheet-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <div class="sheet-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div style="font-size:13px;font-weight:600">📋 Signed Attendance Sheets</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn sm" onclick="loadSignedSheets()">↻ Refresh</button>
+          <div class="admin-trainer-only" style="display:flex;gap:8px;align-items:center">
+            <button class="btn sm primary" onclick="document.getElementById('signed-sheet-upload').click()">⬆ Upload attendance sheet</button>
             <input type="file" id="signed-sheet-upload" accept=".pdf,image/*" style="display:none" onchange="uploadSignedSheet(event)">
           </div>
         </div>
-        <div class="sheet-card-body"><div id="signed-sheets-list"><p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p></div></div>
+        <div class="sheet-card-body">
+          <div id="signed-sheets-list">
+            <p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p>
+          </div>
+        </div>
       </div>
 
       <!-- ATTENDEES -->
@@ -1490,7 +1494,7 @@ function loadCourse(){
     attendees[id]=(data||[]).map(normalizeAttendee);
     renderAttendees();
   });
-  // Fetch sessions then signed sheets sequentially
+  // Fetch sessions
   const capturedId = id;
   db.from('sessions').select('*').eq('course_id',capturedId).order('session_date').then(async ({data})=>{
     if(currentCourseId !== capturedId) return;
@@ -1500,8 +1504,7 @@ function loadCourse(){
       renderSessionsList(); 
       renderPayroll(); 
     }
-    // Pass sessions directly - no cache lookup
-    loadSignedSheets(capturedId, freshSessions);
+    loadSignedSheets(capturedId);
   });
 }
 function setType(t,silent){
@@ -2094,121 +2097,91 @@ window._downloadSheet = function(sessIdx) {
 // ══ SIGNED SHEETS UPLOAD ══
 async function uploadSignedSheet(e) {
   const file = e.target.files[0]; if(!file) return;
-  const dayNum = parseInt(e.target.dataset.dayNum);
-  if (!dayNum) { showToast('Day not specified'); e.target.value=''; return; }
-  if (!currentCourseId) { showToast('No course selected'); return; }
+  if (!currentCourseId) { showToast('No course selected'); e.target.value=''; return; }
 
-  // Use courseId stored when upload was triggered (most reliable)
-  const courseId = e.target.dataset.courseId || currentCourseId;
-
-  // Fetch session from DB
-  const { data: dbSess } = await db.from('sessions').select('*')
-    .eq('course_id', courseId).order('session_date');
-  const sess = (dbSess||[])[dayNum-1];
-  if (!sess) { showToast('Session not found for day ' + dayNum); return; }
+  // Capture courseId immediately
+  const courseId = currentCourseId;
+  const courseName = courses.find(x=>x.id===courseId)?.name || 'course';
 
   showToast('Uploading...');
+
+  // Keep original filename as-is
+  const autoName = file.name;
 
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const fileUrl = ev.target.result;
-    // Delete existing for this specific course+day
-    await db.from('signed_sheets').delete()
-      .eq('course_id', courseId)
-      .eq('day_number', dayNum);
-    // Insert with captured courseId
     const { error } = await db.from('signed_sheets').insert({
       course_id: courseId,
-      session_id: sess.id,
-      day_number: dayNum,
+      day_number: null,   // no longer per-day
       file_url: fileUrl,
-      file_name: file.name,
+      file_name: autoName,
       uploaded_by: currentUser?.id,
+      uploaded_at: new Date().toISOString(),
     });
     if (error) { showToast('Upload error: '+error.message); console.error(error); return; }
-    showToast(`Day ${dayNum} uploaded for ${courses.find(x=>x.id===courseId)?.name||'course'}!`);
+    showToast(`Uploaded: ${autoName}`);
     e.target.value = '';
-    if (currentCourseId === courseId) loadSignedSheets();
+    // Auto-refresh only if still on same course
+    if (currentCourseId === courseId) loadSignedSheets(courseId);
   };
   reader.readAsDataURL(file);
 }
 
-async function loadSignedSheets(courseId, directSessions) {
+async function loadSignedSheets(courseId) {
   const el = document.getElementById('signed-sheets-list');
   if (!el) return;
   courseId = courseId || currentCourseId;
-  if (!courseId) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>';
-    return;
-  }
+  if (!courseId) { el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>'; return; }
 
-  // Use directly passed sessions OR fetch from DB
-  let ss = directSessions || [];
-  if (!ss.length) {
-    const { data: dbSess } = await db.from('sessions').select('*')
-      .eq('course_id', courseId).order('session_date');
-    ss = dbSess || [];
-    if (ss.length) sessions[courseId] = ss.map(normalizeSession);
-  }
-
-  if (currentCourseId !== courseId) return; // stale
-
-  if (!ss.length) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Add sessions first to enable signed sheet uploads.</p>';
-    return;
-  }
+  el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
 
   const { data } = await db.from('signed_sheets').select('*')
-    .eq('course_id', courseId).order('day_number');
+    .eq('course_id', courseId).order('uploaded_at', {ascending: false});
 
-  if (currentCourseId !== courseId) return; // stale
+  // Stale check
+  if (currentCourseId !== courseId) return;
 
-  const uploaded = {};
-  (data||[]).forEach(d => uploaded[d.day_number] = d);
+  const canDelete = currentRole === 'admin' || currentRole === 'trainer';
 
-  const canUpload = currentRole === 'admin' || currentRole === 'trainer';
+  if (!data || !data.length) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--text3)">No signed sheets uploaded yet.</p>';
+    return;
+  }
 
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
-    ${ss.map((s,i)=>{
-      const dayNum = i+1;
-      const sheet = uploaded[dayNum];
-      return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
-        <div style="padding:10px 12px;background:${sheet?'var(--green)':'var(--surface2)'};border-bottom:1px solid var(--border)">
-          <div style="font-size:12px;font-weight:700;color:${sheet?'var(--green-dark)':'var(--text2)'}">
-            ${sheet?'✓':'○'} Day ${dayNum}
-          </div>
-          <div style="font-size:11px;color:${sheet?'var(--green-dark)':'var(--text3)'};font-weight:500">${fmtDate(s.session_date)}</div>
-        </div>
-        <div style="padding:10px 12px">
-          ${sheet
-            ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:500;word-break:break-all">📄 ${sheet.file_name||'Signed sheet'}</div>
-               <div style="font-size:10px;color:var(--text3);margin-bottom:8px">${new Date(sheet.uploaded_at).toLocaleDateString()}</div>
-               <a href="${sheet.file_url}" download="${sheet.file_name||'signed_sheet_day'+dayNum}" class="btn sm primary" style="display:inline-block;text-decoration:none;margin-right:4px">⬇ Download</a>
-               ${canUpload?`<button class="btn sm" onclick="triggerDayUpload(${dayNum})" style="margin-top:4px">↻ Replace</button>
-               <button class="btn sm danger" onclick="deleteSignedSheet(${dayNum})" style="margin-top:4px">✕</button>`:''}
-               `
-            : `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Not uploaded yet</div>
-               ${canUpload?`<button class="btn sm primary" onclick="triggerDayUpload(${dayNum})">+ Upload</button>`:''}
-               `}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;width:160px">Date</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Filename</th>
+          ${canDelete?'<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;width:60px">Delete</th>':''}
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(sheet => {
+          const uploadedAt = new Date(sheet.uploaded_at);
+          const dateStr = `${uploadedAt.getFullYear()}-${String(uploadedAt.getMonth()+1).padStart(2,'0')}-${String(uploadedAt.getDate()).padStart(2,'0')} ${String(uploadedAt.getHours()).padStart(2,'0')}:${String(uploadedAt.getMinutes()).padStart(2,'0')}`;
+          return `<tr style="border-bottom:1px solid var(--border);transition:background 0.1s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+            <td style="padding:8px 12px;color:var(--text3);font-family:'Roboto Mono',monospace;font-size:11px">${dateStr}</td>
+            <td style="padding:8px 12px">
+              <a href="${sheet.file_url}" download="${sheet.file_name||'attendance_sheet'}" style="color:var(--blue-dark);font-weight:500;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                📄 ${sheet.file_name||'attendance_sheet'}
+              </a>
+            </td>
+            ${canDelete?`<td style="padding:8px 12px;text-align:center"><button class="btn sm danger" onclick="deleteSignedSheet('${sheet.id}')" title="Delete">✕</button></td>`:''}
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
 }
 
-function triggerDayUpload(dayNum) {
-  const input = document.getElementById('signed-sheet-upload');
-  input.dataset.dayNum = dayNum;
-  input.dataset.courseId = currentCourseId; // lock to current course
-  input.value = ''; // reset so same file can be re-uploaded
-  input.click();
-}
-
-async function deleteSignedSheet(dayNum) {
-  if (!confirm(`Delete Day ${dayNum} signed sheet?`)) return;
-  await db.from('signed_sheets').delete().eq('course_id', currentCourseId).eq('day_number', dayNum);
-  loadSignedSheets();
+async function deleteSignedSheet(sheetId) {
+  if (!confirm('Delete this signed sheet?')) return;
+  const courseId = currentCourseId;
+  await db.from('signed_sheets').delete().eq('id', sheetId);
   showToast('Deleted');
+  loadSignedSheets(courseId);
 }
 
 // ══ SIGNED SHEETS ══
@@ -3910,7 +3883,7 @@ async function autoUpdateCourseStatus() {
   }
 }
 
-window.toggleSessions=toggleSessions; window.togglePayroll=togglePayroll; window.updateCourseLink=updateCourseLink; window.uploadTrainerQR=uploadTrainerQR; window.downloadAttendanceSheet=downloadAttendanceSheet; window._downloadSheet=window._downloadSheet; window.uploadSignedSheet=uploadSignedSheet; window.loadSignedSheets=loadSignedSheets; window.deleteSignedSheet=deleteSignedSheet; window.triggerDayUpload=triggerDayUpload; window.renderCompanyManager=renderCompanyManager;
+window.toggleSessions=toggleSessions; window.togglePayroll=togglePayroll; window.updateCourseLink=updateCourseLink; window.uploadTrainerQR=uploadTrainerQR; window.downloadAttendanceSheet=downloadAttendanceSheet; window._downloadSheet=window._downloadSheet; window.uploadSignedSheet=uploadSignedSheet; window.loadSignedSheets=loadSignedSheets; window.deleteSignedSheet=deleteSignedSheet; window.renderCompanyManager=renderCompanyManager;
 window.signInEmail=signInEmail; window.signInGoogle=signInGoogle;
 window.sendReset=sendReset; window.registerWithInvite=registerWithInvite;
 window.signOut=signOut; window.goAuth=goAuth;
