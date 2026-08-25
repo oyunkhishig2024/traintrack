@@ -1486,26 +1486,28 @@ function loadCourse(){
   document.getElementById('sh-trainers').textContent=getUniqueTrainers(id);
   document.getElementById('sh-status').innerHTML=`<span class="badge badge-${c.status==='inprogress'?'inprogress':c.status==='completed'?'completed':'scheduled'}">${statusLabel(c.status)}</span>`;
   setType(c.type,true);renderSessionsList();renderPayroll();renderTrainerFooter();updateSelfRegButtons();
-  // Clear signed sheets immediately + cancel any in-flight load
-  _sheetGen++;
+
+  // Clear signed sheets panel immediately
   const ssEl = document.getElementById('signed-sheets-list');
   if (ssEl) ssEl.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
-  // Always fetch fresh attendees from DB
+
+  // Load signed sheets immediately — independent of sessions fetch
+  loadSignedSheets(id);
+
+  // Fetch attendees from DB
   db.from('attendees').select('*').eq('course_id',id).then(({data})=>{
+    if(currentCourseId !== id) return;
     attendees[id]=(data||[]).map(normalizeAttendee);
     renderAttendees();
   });
-  // Fetch sessions
-  const capturedId = id;
-  db.from('sessions').select('*').eq('course_id',capturedId).order('session_date').then(async ({data})=>{
-    if(currentCourseId !== capturedId) return;
-    const freshSessions = data || [];
-    if(freshSessions.length){ 
-      sessions[capturedId] = freshSessions.map(normalizeSession); 
+  // Fetch sessions from DB
+  db.from('sessions').select('*').eq('course_id',id).order('session_date').then(({data})=>{
+    if(currentCourseId !== id) return;
+    if(data&&data.length){ 
+      sessions[id]=data.map(normalizeSession); 
       renderSessionsList(); 
       renderPayroll(); 
     }
-    loadSignedSheets(capturedId);
   });
 }
 function setType(t,silent){
@@ -2129,25 +2131,19 @@ async function uploadSignedSheet(e) {
   reader.readAsDataURL(file);
 }
 
-// ══ SIGNED SHEETS — generation counter prevents stale renders ══
-let _sheetGen = 0;
-
+// ══ SIGNED SHEETS ══
 async function loadSignedSheets(courseId) {
   const el = document.getElementById('signed-sheets-list');
   if (!el) return;
-  courseId = courseId || currentCourseId;
-  if (!courseId) { el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>'; return; }
-
-  // Bump generation — any older async call will bail out when it checks
-  const myGen = ++_sheetGen;
-
-  el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Loading...</p>';
+  // Snapshot the courseId we're fetching for
+  const fetchFor = courseId || currentCourseId;
+  if (!fetchFor) { el.innerHTML = '<p style="font-size:12px;color:var(--text3)">Select a course first.</p>'; return; }
 
   const { data } = await db.from('signed_sheets').select('*')
-    .eq('course_id', courseId).order('uploaded_at', {ascending: false});
+    .eq('course_id', fetchFor).order('uploaded_at', {ascending: false});
 
-  // Bail if a newer call has started (user switched courses)
-  if (myGen !== _sheetGen) return;
+  // Discard if user has moved to a different course while we were fetching
+  if (currentCourseId !== fetchFor) return;
 
   const canDelete = currentRole === 'admin' || currentRole === 'trainer';
 
@@ -2169,7 +2165,7 @@ async function loadSignedSheets(courseId) {
         ${data.map(sheet => {
           const uploadedAt = new Date(sheet.uploaded_at);
           const dateStr = `${uploadedAt.getFullYear()}-${String(uploadedAt.getMonth()+1).padStart(2,'0')}-${String(uploadedAt.getDate()).padStart(2,'0')} ${String(uploadedAt.getHours()).padStart(2,'0')}:${String(uploadedAt.getMinutes()).padStart(2,'0')}`;
-          return `<tr style="border-bottom:1px solid var(--border);transition:background 0.1s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          return `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
             <td style="padding:8px 12px;color:var(--text3);font-family:'Roboto Mono',monospace;font-size:11px">${dateStr}</td>
             <td style="padding:8px 12px">
               <a href="${sheet.file_url}" download="${sheet.file_name||'attendance_sheet'}" style="color:var(--blue-dark);font-weight:500;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
